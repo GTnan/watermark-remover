@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>视频去水印</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="workspace">
+        <div class="topbar">
+          <div>
+            <h1>视频去水印</h1>
+            <p>上传视频，框选字幕或水印区域，提交本地 VSR/FFmpeg 处理。</p>
+          </div>
+          <div class="status-pill" id="statusText">等待上传</div>
+        </div>
+
+        <div class="stage">
+          <div class="preview" id="dropZone">
+            <video id="video" controls playsinline></video>
+            <canvas id="canvas"></canvas>
+            <div class="empty" id="emptyState">
+              <strong>拖入视频或点击选择</strong>
+              <span>支持 mp4、mov、mkv、webm、avi</span>
+            </div>
+            <input id="fileInput" type="file" accept="video/*">
+          </div>
+
+          <aside class="panel">
+            <label class="field">
+              <span>处理引擎</span>
+              <select id="engine">
+                <option value="vsr">VSR（已配置时使用）</option>
+                <option value="ffmpeg">FFmpeg 快速去水印</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>修复算法</span>
+              <select id="mode">
+                <option value="sttn">STTN：速度与效果均衡</option>
+                <option value="lama">LaMa：动画/图文更稳</option>
+                <option value="propainter">ProPainter：高质量但更慢</option>
+              </select>
+            </label>
+
+            <label class="check">
+              <input type="checkbox" id="skipDetection" checked>
+              <span>固定区域处理（适合水印位置稳定）</span>
+            </label>
+
+            <div class="coords">
+              <label><span>X</span><input id="x" type="number" min="0" value="0"></label>
+              <label><span>Y</span><input id="y" type="number" min="0" value="0"></label>
+              <label><span>宽</span><input id="w" type="number" min="1" value="320"></label>
+              <label><span>高</span><input id="h" type="number" min="1" value="80"></label>
+            </div>
+
+            <button class="primary" id="submit" disabled>开始处理</button>
+            <a class="download" id="download" hidden>下载结果</a>
+            <pre id="logs"></pre>
+          </aside>
+        </div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

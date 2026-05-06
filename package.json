@@ -1,0 +1,13 @@
+{
+  "name": "vsr-watermark-remover",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Upload videos and remove subtitle/watermark regions with VSR or FFmpeg fallback.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
