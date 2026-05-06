@@ -7,6 +7,9 @@ const statusText = document.querySelector("#statusText");
 const submit = document.querySelector("#submit");
 const download = document.querySelector("#download");
 const logs = document.querySelector("#logs");
+const progressWrap = document.querySelector("#progressWrap");
+const progressText = document.querySelector("#progressText");
+const progressBar = document.querySelector("#progressBar");
 const fields = {
   engine: document.querySelector("#engine"),
   mode: document.querySelector("#mode"),
@@ -19,11 +22,18 @@ const fields = {
 
 let uploadId = "";
 let currentFile = null;
-let dragStart = null;
+let dragState = null;
 let rect = { x: 0, y: 0, w: 320, h: 80 };
 
 function setStatus(text) {
   statusText.textContent = text;
+}
+
+function setProgress(value) {
+  const progress = Math.max(0, Math.min(100, Math.round(Number(value || 0))));
+  progressWrap.hidden = progress === 0;
+  progressText.textContent = `${progress}%`;
+  progressBar.style.width = `${progress}%`;
 }
 
 function videoBox() {
@@ -40,8 +50,8 @@ function videoBox() {
 function canvasToVideo(point) {
   const box = videoBox();
   return {
-    x: Math.round((point.x - box.x) / box.scale),
-    y: Math.round((point.y - box.y) / box.scale)
+    x: Math.round(Math.max(0, Math.min(video.videoWidth || 0, (point.x - box.x) / box.scale))),
+    y: Math.round(Math.max(0, Math.min(video.videoHeight || 0, (point.y - box.y) / box.scale)))
   };
 }
 
@@ -72,6 +82,7 @@ function paint() {
 }
 
 function syncFields() {
+  rect = clampRect(rect);
   fields.x.value = rect.x;
   fields.y.value = rect.y;
   fields.w.value = rect.w;
@@ -80,13 +91,27 @@ function syncFields() {
 }
 
 function readFields() {
-  rect = {
+  rect = clampRect({
     x: Number(fields.x.value || 0),
     y: Number(fields.y.value || 0),
     w: Number(fields.w.value || 1),
     h: Number(fields.h.value || 1)
-  };
+  });
   paint();
+}
+
+function clampRect(region) {
+  const maxW = video.videoWidth || 1;
+  const maxH = video.videoHeight || 1;
+  const w = Math.max(1, Math.min(Math.round(region.w), maxW));
+  const h = Math.max(1, Math.min(Math.round(region.h), maxH));
+  const x = Math.max(0, Math.min(Math.round(region.x), maxW - w));
+  const y = Math.max(0, Math.min(Math.round(region.y), maxH - h));
+  return { x, y, w, h };
+}
+
+function containsPoint(region, point) {
+  return point.x >= region.x && point.x <= region.x + region.w && point.y >= region.y && point.y <= region.y + region.h;
 }
 
 async function upload(file) {
@@ -94,6 +119,7 @@ async function upload(file) {
   uploadId = "";
   submit.disabled = true;
   download.hidden = true;
+  setProgress(0);
   logs.textContent = "";
   setStatus("上传中");
   emptyState.hidden = true;
@@ -133,23 +159,36 @@ dropZone.addEventListener("drop", event => {
 canvas.addEventListener("pointerdown", event => {
   if (!currentFile) return;
   canvas.setPointerCapture(event.pointerId);
-  dragStart = canvasToVideo(pointFromEvent(event));
+  const point = canvasToVideo(pointFromEvent(event));
+  dragState = {
+    mode: containsPoint(rect, point) ? "move" : "draw",
+    start: point,
+    origin: { ...rect }
+  };
 });
 
 canvas.addEventListener("pointermove", event => {
-  if (!dragStart) return;
+  if (!dragState) return;
   const point = canvasToVideo(pointFromEvent(event));
-  rect = {
-    x: Math.max(0, Math.min(dragStart.x, point.x)),
-    y: Math.max(0, Math.min(dragStart.y, point.y)),
-    w: Math.max(1, Math.abs(point.x - dragStart.x)),
-    h: Math.max(1, Math.abs(point.y - dragStart.y))
-  };
+  if (dragState.mode === "move") {
+    rect = clampRect({
+      ...dragState.origin,
+      x: dragState.origin.x + point.x - dragState.start.x,
+      y: dragState.origin.y + point.y - dragState.start.y
+    });
+  } else {
+    rect = clampRect({
+      x: Math.min(dragState.start.x, point.x),
+      y: Math.min(dragState.start.y, point.y),
+      w: Math.abs(point.x - dragState.start.x),
+      h: Math.abs(point.y - dragState.start.y)
+    });
+  }
   syncFields();
 });
 
 canvas.addEventListener("pointerup", () => {
-  dragStart = null;
+  dragState = null;
 });
 
 video.addEventListener("loadedmetadata", () => {
@@ -170,6 +209,7 @@ submit.addEventListener("click", async () => {
   readFields();
   submit.disabled = true;
   download.hidden = true;
+  setProgress(0);
   setStatus("排队中");
   logs.textContent = "";
 
@@ -200,6 +240,7 @@ async function poll(jobId) {
   const response = await fetch(`/api/jobs/${jobId}`);
   const job = await response.json();
   setStatus(job.status === "done" ? "已完成" : job.status === "failed" ? "失败" : "处理中");
+  setProgress(job.status === "failed" ? 0 : job.progress);
   logs.textContent = job.logs || "";
   if (job.status === "done") {
     download.href = job.downloadUrl;

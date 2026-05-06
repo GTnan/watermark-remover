@@ -60,6 +60,15 @@
 
             <button class="primary" id="submit" disabled>开始处理</button>
             <a class="download" id="download" hidden>下载结果</a>
+            <div class="progress" id="progressWrap" hidden>
+              <div class="progress-meta">
+                <span>处理进度</span>
+                <strong id="progressText">0%</strong>
+              </div>
+              <div class="progress-track">
+                <div id="progressBar"></div>
+              </div>
+            </div>
             <pre id="logs"></pre>
           </aside>
         </div>

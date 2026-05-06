@@ -168,11 +168,11 @@ function runCommand(job, command, args) {
     const child = spawn(command, args, { cwd: ROOT });
     job.pid = child.pid;
     child.stdout.on("data", chunk => {
-      job.logs.push(chunk.toString());
+      appendJobLog(job, chunk.toString());
       if (job.logs.length > 80) job.logs.shift();
     });
     child.stderr.on("data", chunk => {
-      job.logs.push(chunk.toString());
+      appendJobLog(job, chunk.toString());
       if (job.logs.length > 80) job.logs.shift();
     });
     child.on("error", reject);
@@ -181,6 +181,38 @@ function runCommand(job, command, args) {
       else reject(new Error(`${command} 退出码 ${code}`));
     });
   });
+}
+
+function timeToSeconds(value) {
+  const match = String(value).match(/(\d+):(\d+):(\d+(?:\.\d+)?)/);
+  if (!match) return 0;
+  return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+}
+
+function updateProgressFromLog(job, text) {
+  const durationMatch = text.match(/Duration:\s*(\d+:\d+:\d+(?:\.\d+)?)/);
+  if (durationMatch) job.durationSeconds = timeToSeconds(durationMatch[1]);
+
+  const timeMatches = [...text.matchAll(/time=(\d+:\d+:\d+(?:\.\d+)?)/g)];
+  if (timeMatches.length && job.durationSeconds) {
+    const seconds = timeToSeconds(timeMatches.at(-1)[1]);
+    job.progress = Math.max(job.progress || 0, Math.min(99, Math.round((seconds / job.durationSeconds) * 100)));
+  }
+
+  const percentMatches = [...text.matchAll(/(\d{1,3})%/g)];
+  if (percentMatches.length) {
+    const percent = Number(percentMatches.at(-1)[1]);
+    if (Number.isFinite(percent)) job.progress = Math.max(job.progress || 0, Math.min(99, percent));
+  }
+
+  if (!job.progress && /frame=|Processing|inpaint|detect|remove|subtitle/i.test(text)) {
+    job.progress = 5;
+  }
+}
+
+function appendJobLog(job, text) {
+  updateProgressFromLog(job, text);
+  job.logs.push(text);
 }
 
 async function processJob(job) {
@@ -253,6 +285,7 @@ async function route(req, res) {
         engine: body.engine === "vsr" ? "vsr" : "ffmpeg",
         options: body.options || {},
         status: "queued",
+        progress: 0,
         logs: [],
         createdAt: new Date().toISOString()
       };
@@ -281,6 +314,7 @@ async function route(req, res) {
       finishedAt: job.finishedAt,
       error: job.error,
       downloadUrl: job.downloadUrl,
+      progress: job.status === "done" ? 100 : job.progress || 0,
       logs: job.logs.slice(-12).join("")
     });
     return;

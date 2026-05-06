@@ -91,6 +91,7 @@ canvas {
 canvas {
   pointer-events: auto;
   cursor: crosshair;
+  touch-action: none;
 }
 
 .empty {
@@ -192,6 +193,42 @@ input[type="number"] {
 .primary:disabled {
   cursor: not-allowed;
   background: #a4b1b0;
+}
+
+.progress {
+  display: grid;
+  gap: 8px;
+}
+
+.progress[hidden] {
+  display: none;
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.progress-meta strong {
+  color: var(--brand-dark);
+}
+
+.progress-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe7e5;
+}
+
+.progress-track div {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+  transition: width .25s ease;
 }
 
 pre {
