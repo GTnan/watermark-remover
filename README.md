@@ -18,31 +18,47 @@ http://localhost:3000
 
 上传文件和处理结果会保存在 `data/` 目录。
 
-## 接入 VSR
+## 接入 VSR Docker
 
-先在服务器安装 VSR：
-
-```bash
-git clone https://github.com/YaoFANGUK/video-subtitle-remover.git
-cd video-subtitle-remover
-python -m venv videoEnv
-source videoEnv/bin/activate
-pip install -r requirements.txt
-```
-
-然后启动本服务时指定 VSR 入口：
+推荐用 Docker 镜像接入 VSR，避免在服务器上手动安装 Paddle、Torch、CUDA 等依赖：
 
 ```bash
-VSR_MAIN=/path/to/video-subtitle-remover/backend/main.py VSR_PYTHON=/path/to/videoEnv/bin/python npm start
+docker pull eritpchy/video-subtitle-remover:1.4.0-cpu
+HOST=0.0.0.0 PORT=3000 VSR_ENGINE=docker npm start
 ```
 
-如果你使用的 VSR 版本 CLI 参数不同，请调整 `server.js` 里的 `vsrArgs()`。不同开源版本可能对输入、输出、字幕区域参数命名有差异。
+如果 Docker Hub 拉取慢，可以先用镜像前缀拉取并打标签：
+
+```bash
+docker pull docker.1ms.run/eritpchy/video-subtitle-remover:1.4.0-cpu
+docker tag docker.1ms.run/eritpchy/video-subtitle-remover:1.4.0-cpu eritpchy/video-subtitle-remover:1.4.0-cpu
+```
+
+网页选择 VSR 时，服务会自动调用：
+
+```bash
+docker run --rm -v ./data:/data eritpchy/video-subtitle-remover:1.4.0-cpu python backend/main.py
+```
+
+VSR 的字幕区域参数为 `YMIN YMAX XMIN XMAX`，前端框选区域会自动转换。
+
+## 接入源码版 VSR
+
+如果你已经源码安装了 VSR，也可以改用 Python 入口：
+
+```bash
+VSR_ENGINE=python \
+VSR_MAIN=/path/to/video-subtitle-remover/backend/main.py \
+VSR_PYTHON=/path/to/videoEnv/bin/python \
+npm start
+```
 
 ## 运行参数
 
 ```bash
 HOST=0.0.0.0 PORT=3000 npm start
 MAX_UPLOAD_BYTES=2147483648 npm start
+VSR_DOCKER_IMAGE=eritpchy/video-subtitle-remover:1.4.0-cpu npm start
 ```
 
 `MAX_UPLOAD_BYTES` 默认是 1GB。

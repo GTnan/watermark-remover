@@ -13,6 +13,8 @@ const OUTPUT_DIR = path.join(DATA_DIR, "outputs");
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 1024 * 1024 * 1024);
+const VSR_ENGINE = process.env.VSR_ENGINE || "docker";
+const VSR_DOCKER_IMAGE = process.env.VSR_DOCKER_IMAGE || "eritpchy/video-subtitle-remover:1.4.0-cpu";
 const VSR_MAIN = process.env.VSR_MAIN || "";
 const VSR_PYTHON = process.env.VSR_PYTHON || "python3";
 
@@ -115,13 +117,50 @@ function ffmpegArgs(input, output, opts) {
   ];
 }
 
-function vsrArgs(input, output, opts) {
-  const args = [VSR_MAIN, "--input", input, "--output", output, "--mode", opts.mode || "sttn"];
-  if (opts.regionMode === "manual") {
-    args.push("--sub_area", `${opts.x},${opts.y},${opts.w},${opts.h}`);
+function normalizeVsrMode(mode) {
+  if (mode === "lama") return "lama";
+  if (mode === "propainter") return "propainter";
+  return "sttn-auto";
+}
+
+function dockerDataPath(filePath) {
+  const relative = path.relative(DATA_DIR, filePath).split(path.sep).join("/");
+  return `/data/${relative}`;
+}
+
+function vsrCliArgs(input, output, opts, dockerPaths = false) {
+  const inPath = dockerPaths ? dockerDataPath(input) : input;
+  const outPath = dockerPaths ? dockerDataPath(output) : output;
+  const x = Math.max(0, Math.round(Number(opts.x || 0)));
+  const y = Math.max(0, Math.round(Number(opts.y || 0)));
+  const w = Math.max(1, Math.round(Number(opts.w || 1)));
+  const h = Math.max(1, Math.round(Number(opts.h || 1)));
+  return [
+    "backend/main.py",
+    "--input", inPath,
+    "--output", outPath,
+    "--subtitle-area-coords", String(y), String(y + h), String(x), String(x + w),
+    "--inpaint-mode", normalizeVsrMode(opts.mode)
+  ];
+}
+
+function vsrCommand(input, output, opts) {
+  if (VSR_ENGINE === "python" && VSR_MAIN) {
+    return {
+      command: VSR_PYTHON,
+      args: [VSR_MAIN, ...vsrCliArgs(input, output, opts).slice(1)]
+    };
   }
-  if (opts.skipDetection) args.push("--skip_detection");
-  return args;
+  return {
+    command: "docker",
+    args: [
+      "run", "--rm",
+      "-v", `${DATA_DIR}:/data`,
+      VSR_DOCKER_IMAGE,
+      "python",
+      ...vsrCliArgs(input, output, opts, true)
+    ]
+  };
 }
 
 function runCommand(job, command, args) {
@@ -153,8 +192,9 @@ async function processJob(job) {
 
   try {
     if (!upload) throw new Error("找不到上传的视频");
-    if (job.engine === "vsr" && VSR_MAIN) {
-      await runCommand(job, VSR_PYTHON, vsrArgs(upload.path, output, job.options));
+    if (job.engine === "vsr") {
+      const vsr = vsrCommand(upload.path, output, job.options);
+      await runCommand(job, vsr.command, vsr.args);
     } else {
       await runCommand(job, "ffmpeg", ffmpegArgs(upload.path, output, job.options));
     }
@@ -268,6 +308,6 @@ http.createServer((req, res) => {
   route(req, res).catch(error => json(res, 500, { error: error.message }));
 }).listen(PORT, HOST, () => {
   console.log(`Watermark remover listening on http://${HOST}:${PORT}`);
-  if (VSR_MAIN) console.log(`VSR enabled: ${VSR_PYTHON} ${VSR_MAIN}`);
-  else console.log("VSR_MAIN is not set; using FFmpeg fallback.");
+  if (VSR_ENGINE === "python" && VSR_MAIN) console.log(`VSR enabled: ${VSR_PYTHON} ${VSR_MAIN}`);
+  else console.log(`VSR enabled through Docker image: ${VSR_DOCKER_IMAGE}`);
 });
