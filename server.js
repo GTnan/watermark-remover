@@ -205,6 +205,21 @@ function updateProgressFromLog(job, text) {
     if (Number.isFinite(percent)) job.progress = Math.max(job.progress || 0, Math.min(99, percent));
   }
 
+  const vsrBlockMatch = text.match(/Processing:\s*\d+\s*-\s*(\d+)\s*\/\s*Total:\s*(\d+)/i);
+  if (vsrBlockMatch) {
+    const current = Number(vsrBlockMatch[1]);
+    const total = Number(vsrBlockMatch[2]);
+    if (total > 0) job.progress = Math.max(job.progress || 0, Math.min(99, Math.round((current / total) * 100)));
+  }
+
+  const vsrFrameMatches = [...text.matchAll(/(?:^|\s)(\d+)\s*\/\s*(\d+)(?:\s|\[|$)/g)];
+  if (vsrFrameMatches.length) {
+    const [, currentValue, totalValue] = vsrFrameMatches.at(-1);
+    const current = Number(currentValue);
+    const total = Number(totalValue);
+    if (total > 0) job.progress = Math.max(job.progress || 0, Math.min(99, Math.round((current / total) * 100)));
+  }
+
   if (!job.progress && /frame=|Processing|inpaint|detect|remove|subtitle/i.test(text)) {
     job.progress = 5;
   }

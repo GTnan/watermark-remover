@@ -119,6 +119,14 @@ canvas {
   cursor: pointer;
 }
 
+.preview.has-video #fileInput {
+  pointer-events: none;
+}
+
+.preview.has-video .empty {
+  display: none;
+}
+
 .panel {
   display: flex;
   flex-direction: column;

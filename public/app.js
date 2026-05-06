@@ -29,9 +29,9 @@ function setStatus(text) {
   statusText.textContent = text;
 }
 
-function setProgress(value) {
+function setProgress(value, visible = false) {
   const progress = Math.max(0, Math.min(100, Math.round(Number(value || 0))));
-  progressWrap.hidden = progress === 0;
+  progressWrap.hidden = !visible && progress === 0;
   progressText.textContent = `${progress}%`;
   progressBar.style.width = `${progress}%`;
 }
@@ -123,6 +123,7 @@ async function upload(file) {
   logs.textContent = "";
   setStatus("上传中");
   emptyState.hidden = true;
+  dropZone.classList.add("has-video");
   video.src = URL.createObjectURL(file);
 
   const response = await fetch(`/api/upload?name=${encodeURIComponent(file.name)}`, {
@@ -240,7 +241,7 @@ async function poll(jobId) {
   const response = await fetch(`/api/jobs/${jobId}`);
   const job = await response.json();
   setStatus(job.status === "done" ? "已完成" : job.status === "failed" ? "失败" : "处理中");
-  setProgress(job.status === "failed" ? 0 : job.progress);
+  setProgress(job.status === "failed" ? 0 : job.progress, ["queued", "running"].includes(job.status));
   logs.textContent = job.logs || "";
   if (job.status === "done") {
     download.href = job.downloadUrl;
